@@ -11,10 +11,3 @@ class Categoria(Document):
 
     class Settings:
         collection = "categorias"
-
-class CategoriaResponse(BaseModel):
-    """
-    Modelo de resposta para ocultar o _id e mostrar apenas o categoria_id.
-    """
-    categoria_id: int
-    nome: str

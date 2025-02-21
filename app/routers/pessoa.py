@@ -99,23 +99,6 @@ async def excluir_pessoa(identificador: str):
     await pessoa.delete()
     return {"message": "Pessoa excluída com sucesso"}
 
-@router.get("/{pessoa_id}/memorias", response_model=List[Memoria])
-async def listar_memorias_por_pessoa(pessoa_id: PydanticObjectId):
-    """
-    Lista todas as memórias associadas a uma determinada pessoa.
-    """
-    pessoa = await Pessoa.get(pessoa_id)
-
-    if not pessoa:
-        raise HTTPException(status_code=404, detail="Pessoa não encontrada")
-
-    memorias = await Memoria.find({"pessoa": pessoa.id}).to_list()
-
-    if not memorias:
-        raise HTTPException(status_code=404, detail="Nenhuma memória encontrada para esta pessoa")
-
-    return memorias
-
 # 🔹 FILTRO POR DATA DE NASCIMENTO OTIMIZADO
 @router.get("/filtrar/data_nascimento", response_model=List[Pessoa])
 async def filtrar_pessoas_por_data_nascimento(
@@ -162,7 +145,7 @@ async def ordenar_pessoas_por_data_nascimento(
         raise HTTPException(status_code=404, detail="Nenhuma pessoa encontrada")
 
     for pessoa in pessoas:
-        memorias_pessoa = await Memoria.find({"pessoa": pessoa.id}).to_list()
+        memorias_pessoa = await Memoria.find(Memoria.pessoa == pessoa).to_list()
         pessoa.memorias = [m.titulo for m in memorias_pessoa]
 
     return pessoas

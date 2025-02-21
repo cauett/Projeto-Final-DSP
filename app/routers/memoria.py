@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query
-from typing import List, Optional
+from typing import List, Union
 from datetime import date
 from app.models.memoria import Memoria
 from app.models.categoria import Categoria
@@ -88,12 +88,16 @@ async def excluir_memoria(id: str):
     await memoria.delete()
     return {"message": "Memória excluída com sucesso"}
 
-@router.get("/categoria/{categoria_id}", response_model=List[Memoria])
-async def listar_memorias_por_categoria(categoria_id: int):
+@router.get("/categoria/{identificador}", response_model=List[Memoria])
+async def listar_memorias_por_categoria(identificador: Union[int, str]):
     """
-    Lista todas as memórias associadas a uma determinada categoria.
+    Lista todas as memórias associadas a uma determinada categoria,
+    permitindo busca por `categoria_id` (int) ou `nome` (str) de forma case insensitive.
     """
-    categoria = await Categoria.find_one(Categoria.categoria_id == categoria_id)
+    if isinstance(identificador, int) or identificador.isdigit():
+        categoria = await Categoria.find_one(Categoria.categoria_id == int(identificador))
+    else:
+        categoria = await Categoria.find_one({"nome": {"$regex": f"^{identificador}$", "$options": "i"}})
 
     if not categoria:
         raise HTTPException(status_code=404, detail="Categoria não encontrada")
@@ -105,12 +109,16 @@ async def listar_memorias_por_categoria(categoria_id: int):
 
     return memorias
 
-@router.get("/pessoa/{pessoa_id}", response_model=List[Memoria])
-async def listar_memorias_por_pessoa(pessoa_id: PydanticObjectId):
+@router.get("/pessoa/{identificador}", response_model=List[Memoria])
+async def listar_memorias_por_pessoa(identificador: Union[str, PydanticObjectId]):
     """
-    Lista todas as memórias associadas a uma determinada pessoa.
+    Lista todas as memórias associadas a uma determinada pessoa,
+    permitindo busca por `pessoa_id` (ObjectId) ou `nome` (str) de forma case insensitive.
     """
-    pessoa = await Pessoa.get(pessoa_id)
+    if isinstance(identificador, PydanticObjectId) or len(identificador) == 24:
+        pessoa = await Pessoa.get(PydanticObjectId(identificador))
+    else:
+        pessoa = await Pessoa.find_one({"nome": {"$regex": f"^{identificador}$", "$options": "i"}})
 
     if not pessoa:
         raise HTTPException(status_code=404, detail="Pessoa não encontrada")
