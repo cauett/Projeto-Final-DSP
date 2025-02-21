@@ -1,146 +1,111 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from bson import ObjectId
-from typing import List, Optional
-from app.models.categoria import Categoria
-from app.database import get_database
+from fastapi import APIRouter, HTTPException, Query
+from typing import List
+from app.models.categoria import Categoria, CategoriaResponse
+from app.models.memoria import Memoria
 
 router = APIRouter()
 
-@router.post("/", response_model=Categoria)
-async def criar_categoria(categoria: Categoria, db=Depends(get_database)):
+@router.post("/", response_model=CategoriaResponse)
+async def criar_categoria(categoria: Categoria):
     """
-    Cria uma nova categoria com um `id` numérico definido pelo usuário e um `_id` automático.
-
-    - Se o `id` já existir, retorna erro 400.
-    - Se o nome tiver menos de 3 caracteres, retorna erro 422.
+    Cria uma nova categoria com um `categoria_id` definido pelo usuário.
     """
-    categoria_dict = categoria.model_dump()
-
     # Verificação de ID único
-    if await db.categorias.find_one({"id": categoria_dict["id"]}):
+    if await Categoria.find_one(Categoria.categoria_id == categoria.categoria_id):
         raise HTTPException(status_code=400, detail="Já existe uma categoria com este ID")
 
+    # Verificação de nome único
+    if await Categoria.find_one(Categoria.nome == categoria.nome):
+        raise HTTPException(status_code=400, detail="Já existe uma categoria com este nome")
+
     # Validação do Nome
-    if len(categoria_dict["nome"]) < 3:
+    if len(categoria.nome) < 3:
         raise HTTPException(status_code=422, detail="O nome da categoria deve ter pelo menos 3 caracteres")
 
-    # Inserir no MongoDB
-    result = await db.categorias.insert_one(categoria_dict)
+    # Salvar no MongoDB usando Beanie
+    await categoria.insert()
+    return CategoriaResponse(categoria_id=categoria.categoria_id, nome=categoria.nome)
 
-    # Retornar a categoria com `_id` convertido para string
-    categoria_dict["_id"] = str(result.inserted_id)
-    return categoria_dict
-
-@router.get("/", response_model=List[Categoria])
+@router.get("/", response_model=List[CategoriaResponse])
 async def listar_categorias(
-    db=Depends(get_database),
-    limit: int = Query(10, ge=1, le=100, description="Número máximo de categorias a retornar (1-100)"),
-    skip: int = Query(0, ge=0, description="Número de registros a pular")
+    limit: int = Query(10, description="Número máximo de categorias a retornar"),
+    skip: int = Query(0, description="Número de registros a pular")
 ):
     """
-    Lista todas as categorias com paginação.
-
-    - `limit`: Número máximo de categorias retornadas (padrão: 10, máximo: 100).
-    - `skip`: Número de registros a ignorar na busca (padrão: 0).
-    - Inclui a contagem de memórias associadas a cada categoria.
+    Lista todas as categorias cadastradas.
     """
-    categorias_cursor = db.categorias.find().skip(skip).limit(limit)
-    categorias = await categorias_cursor.to_list(length=limit)
-    
-    for categoria in categorias:
-        categoria["_id"] = str(categoria["_id"])  # Converter ObjectId para string
+    categorias = await Categoria.find().skip(skip).limit(limit).to_list()
 
-        # Contar memórias associadas a esta categoria
-        memoria_count = await db.memorias.count_documents({"categoria_id": categoria["id"]})
-        categoria["quantidade_memorias"] = memoria_count
+    # Se não encontrar nenhuma categoria, retorna erro
+    if not categorias:
+        raise HTTPException(status_code=404, detail="Nenhuma categoria encontrada")
 
-    return categorias
+    return [CategoriaResponse(categoria_id=c.categoria_id, nome=c.nome) for c in categorias]
 
-@router.get("/{identificador}", response_model=Categoria)
-async def obter_categoria(identificador: str, db=Depends(get_database)):
+@router.get("/{categoria_id}", response_model=CategoriaResponse)
+async def obter_categoria(categoria_id: int):
     """
-    Obtém os dados de uma categoria específica pelo `_id` (ObjectId) ou `id` numérico.
-
-    - Se o identificador for um ObjectId válido, busca pelo `_id`.
-    - Se for um número, busca pelo `id` numérico.
-    - Também exibe as memórias associadas à categoria.
+    Obtém os dados de uma categoria específica pelo `categoria_id`.
     """
-    categoria = None
-    if ObjectId.is_valid(identificador):
-        categoria = await db.categorias.find_one({"_id": ObjectId(identificador)})
-    elif identificador.isdigit():
-        categoria = await db.categorias.find_one({"id": int(identificador)})
+    categoria = await Categoria.find_one(Categoria.categoria_id == categoria_id)
 
     if not categoria:
         raise HTTPException(status_code=404, detail="Categoria não encontrada")
 
-    categoria["_id"] = str(categoria["_id"])  # Converter ObjectId para string
+    return CategoriaResponse(categoria_id=categoria.categoria_id, nome=categoria.nome)
 
-    # Buscar memórias associadas à categoria
-    memorias_cursor = db.memorias.find({"categoria_id": categoria["id"]})
-    categoria["memorias"] = [str(memoria["_id"]) async for memoria in memorias_cursor]
-
-    return categoria
-
-@router.put("/{identificador}", response_model=Categoria)
-async def atualizar_categoria(identificador: str, categoria: Categoria, db=Depends(get_database)):
+@router.put("/{categoria_id}", response_model=CategoriaResponse)
+async def atualizar_categoria(categoria_id: int, categoria: Categoria):
     """
-    Atualiza os dados de uma categoria existente.
-
-    - Se o identificador for um ObjectId válido, busca pelo `_id`.
-    - Se for um número, busca pelo `id` numérico.
-    - Se a categoria não existir, retorna erro 404.
+    Atualiza os dados de uma categoria existente pelo `categoria_id`.
     """
-    categoria_dict = categoria.model_dump(exclude_unset=True)
-
     # Validação do Nome
-    if "nome" in categoria_dict and len(categoria_dict["nome"]) < 3:
+    if categoria.nome and len(categoria.nome) < 3:
         raise HTTPException(status_code=422, detail="O nome da categoria deve ter pelo menos 3 caracteres")
 
-    filtro = {}
-    if ObjectId.is_valid(identificador):
-        filtro["_id"] = ObjectId(identificador)
-    elif identificador.isdigit():
-        filtro["id"] = int(identificador)
-    else:
-        raise HTTPException(status_code=400, detail="Identificador inválido")
+    # Buscar a categoria existente
+    existing_categoria = await Categoria.find_one(Categoria.categoria_id == categoria_id)
 
-    result = await db.categorias.update_one(filtro, {"$set": categoria_dict})
-
-    if result.matched_count == 0:
+    if not existing_categoria:
         raise HTTPException(status_code=404, detail="Categoria não encontrada")
-    
-    categoria_dict["_id"] = identificador
-    return categoria_dict
 
-@router.delete("/{identificador}")
-async def excluir_categoria(identificador: str, db=Depends(get_database)):
+    # Atualizar os campos
+    existing_categoria.nome = categoria.nome
+    await existing_categoria.save()
+
+    return CategoriaResponse(categoria_id=existing_categoria.categoria_id, nome=existing_categoria.nome)
+
+@router.delete("/{categoria_id}")
+async def excluir_categoria(categoria_id: int):
     """
-    Exclui uma categoria pelo `_id` (ObjectId) ou `id` numérico.
-
-    - Se a categoria não existir, retorna erro 404.
-    - Se houver memórias associadas a essa categoria, retorna erro 400.
+    Exclui uma categoria pelo `categoria_id`.
     """
-    filtro = {}
-    if ObjectId.is_valid(identificador):
-        filtro["_id"] = ObjectId(identificador)
-    elif identificador.isdigit():
-        filtro["id"] = int(identificador)
-    else:
-        raise HTTPException(status_code=400, detail="Identificador inválido")
+    categoria = await Categoria.find_one(Categoria.categoria_id == categoria_id)
 
-    # Verificar se há memórias associadas à categoria
-    categoria = await db.categorias.find_one(filtro)
     if not categoria:
         raise HTTPException(status_code=404, detail="Categoria não encontrada")
 
-    memorias_associadas = await db.memorias.find_one({"categoria_id": categoria["id"]})
+    # Verificar se há memórias associadas à categoria
+    memorias_associadas = await Memoria.find_one(Memoria.categoria == categoria)
     if memorias_associadas:
         raise HTTPException(status_code=400, detail="Não é possível excluir. Esta categoria possui memórias associadas.")
 
-    result = await db.categorias.delete_one(filtro)
-    
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Categoria não encontrada")
-    
+    await categoria.delete()
     return {"message": "Categoria excluída com sucesso"}
+
+@router.get("/{categoria_id}/memorias", response_model=List[Memoria])
+async def listar_memorias_por_categoria(categoria_id: int):
+    """
+    Lista todas as memórias associadas a uma determinada categoria.
+    """
+    categoria = await Categoria.find_one(Categoria.categoria_id == categoria_id)
+
+    if not categoria:
+        raise HTTPException(status_code=404, detail="Categoria não encontrada")
+
+    memorias = await Memoria.find(Memoria.categoria == categoria).to_list()
+
+    if not memorias:
+        raise HTTPException(status_code=404, detail="Nenhuma memória encontrada para esta categoria")
+
+    return memorias

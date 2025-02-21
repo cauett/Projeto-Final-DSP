@@ -1,16 +1,14 @@
-from pydantic import BaseModel
-from typing import Optional, List
+from beanie import Document
 from datetime import date
+from typing import List, Optional
 
-class Pessoa(BaseModel):
+class Pessoa(Document):
     """
     Representa uma pessoa no sistema.
     """
-    _id: Optional[str] = None  # ObjectId do MongoDB convertido para string
     nome: str  # Nome único da pessoa
     data_nascimento: date  # Data de nascimento
-    memorias: Optional[List[str]] = []  # Lista de IDs de memórias associadas
+    memorias: Optional[List[str]] = []  # Agora armazena nomes das memórias em vez de IDs
 
-    class Config:
-        arbitrary_types_allowed = True
-        json_encoders = {date: lambda d: d.strftime("%Y-%m-%d")}
+    class Settings:
+        collection = "pessoas"

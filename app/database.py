@@ -1,12 +1,17 @@
 from motor.motor_asyncio import AsyncIOMotorClient
-from app.config import MONGO_URL, os
+from beanie import init_beanie
+from app.config import MONGO_URL
+from app.models.categoria import Categoria
+from app.models.pessoa import Pessoa
+from app.models.memoria import Memoria
+import os
 
-DB_NAME = os.getenv("MONGO_DB_NAME", "banco-memorias")  # Nome do banco vindo do .env
+DB_NAME = os.getenv("MONGO_DB_NAME", "banco-memorias")
 
-# Criar conexão com o banco de dados MongoDB
+# Criar cliente do MongoDB
 client = AsyncIOMotorClient(MONGO_URL)
-database = client[DB_NAME]  # Agora estamos selecionando explicitamente um banco
+db = client[DB_NAME]
 
-async def get_database():
-    """Retorna a instância do banco de dados MongoDB."""
-    return database
+async def init_db():
+    """Inicializa o Beanie com os modelos do banco de dados."""
+    await init_beanie(database=db, document_models=[Categoria, Pessoa, Memoria])

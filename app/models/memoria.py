@@ -1,19 +1,19 @@
-from pydantic import BaseModel
-from typing import Optional
+from beanie import Document
 from datetime import date
+from typing import Optional
+from .categoria import Categoria
+from .pessoa import Pessoa
 
-class Memoria(BaseModel):
+class Memoria(Document):
     """
     Representa uma memória no sistema.
     """
-    _id: Optional[str] = None  # ObjectId do MongoDB convertido para string
     titulo: str
     descricao: str
     data: date  # Data da memória
     emocao: str  # Exemplo: "Feliz", "Triste"
-    categoria_id: Optional[int]  # Referência para Categoria (ID numérico)
-    pessoa_id: Optional[str]  # Referência para Pessoa (ObjectId convertido para string)
+    categoria: Optional[Categoria] = None  # Referência para Categoria
+    pessoa: Optional[Pessoa] = None  # Referência para Pessoa
 
-    class Config:
-        arbitrary_types_allowed = True
-        json_encoders = {date: lambda d: d.strftime("%Y-%m-%d")}
+    class Settings:
+        collection = "memorias"  # Nome da coleção no MongoDB

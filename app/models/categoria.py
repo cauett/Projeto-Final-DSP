@@ -1,13 +1,20 @@
-from pydantic import BaseModel
+from beanie import Document
+from pydantic import BaseModel, Field
 from typing import Optional
 
-class Categoria(BaseModel):
+class Categoria(Document):
     """
-    Representa uma categoria no sistema.
+    Modelo da categoria armazenado no MongoDB.
     """
-    _id: Optional[str] = None  # ObjectId do MongoDB convertido para string
-    id: int  # ID numérico definido pelo usuário
-    nome: str  # Nome da categoria
+    categoria_id: int = Field(..., unique=True, description="ID definido pelo usuário")
+    nome: str = Field(..., description="Nome da categoria")
 
-    class Config:
-        arbitrary_types_allowed = True
+    class Settings:
+        collection = "categorias"
+
+class CategoriaResponse(BaseModel):
+    """
+    Modelo de resposta para ocultar o _id e mostrar apenas o categoria_id.
+    """
+    categoria_id: int
+    nome: str
