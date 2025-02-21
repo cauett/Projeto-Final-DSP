@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query
-from typing import List
+from typing import List, Optional
 from app.models.categoria import Categoria, CategoriaResponse
 from app.models.memoria import Memoria
 
@@ -10,33 +10,30 @@ async def criar_categoria(categoria: Categoria):
     """
     Cria uma nova categoria com um `categoria_id` definido pelo usuário.
     """
-    # Verificação de ID único
     if await Categoria.find_one(Categoria.categoria_id == categoria.categoria_id):
         raise HTTPException(status_code=400, detail="Já existe uma categoria com este ID")
 
-    # Verificação de nome único
     if await Categoria.find_one(Categoria.nome == categoria.nome):
         raise HTTPException(status_code=400, detail="Já existe uma categoria com este nome")
 
-    # Validação do Nome
     if len(categoria.nome) < 3:
         raise HTTPException(status_code=422, detail="O nome da categoria deve ter pelo menos 3 caracteres")
 
-    # Salvar no MongoDB usando Beanie
     await categoria.insert()
     return CategoriaResponse(categoria_id=categoria.categoria_id, nome=categoria.nome)
 
 @router.get("/", response_model=List[CategoriaResponse])
 async def listar_categorias(
     limit: int = Query(10, description="Número máximo de categorias a retornar"),
-    skip: int = Query(0, description="Número de registros a pular")
+    skip: int = Query(0, description="Número de registros a pular"),
 ):
     """
-    Lista todas as categorias cadastradas.
+    Lista todas as categorias cadastradas com paginação e ordenação.
     """
-    categorias = await Categoria.find().skip(skip).limit(limit).to_list()
+    query = Categoria.find()
 
-    # Se não encontrar nenhuma categoria, retorna erro
+    categorias = await query.skip(skip).limit(limit).to_list()
+
     if not categorias:
         raise HTTPException(status_code=404, detail="Nenhuma categoria encontrada")
 
@@ -54,22 +51,33 @@ async def obter_categoria(categoria_id: int):
 
     return CategoriaResponse(categoria_id=categoria.categoria_id, nome=categoria.nome)
 
+@router.get("/buscar", response_model=List[CategoriaResponse])
+async def buscar_categoria_por_nome(
+    termo: str = Query(..., description="Parte do nome da categoria para busca")
+):
+    """
+    Busca categorias por parte do nome (case insensitive).
+    """
+    categorias = await Categoria.find({"nome": {"$regex": termo, "$options": "i"}}).to_list()
+
+    if not categorias:
+        raise HTTPException(status_code=404, detail="Nenhuma categoria encontrada")
+
+    return [CategoriaResponse(categoria_id=c.categoria_id, nome=c.nome) for c in categorias]
+
 @router.put("/{categoria_id}", response_model=CategoriaResponse)
 async def atualizar_categoria(categoria_id: int, categoria: Categoria):
     """
     Atualiza os dados de uma categoria existente pelo `categoria_id`.
     """
-    # Validação do Nome
     if categoria.nome and len(categoria.nome) < 3:
         raise HTTPException(status_code=422, detail="O nome da categoria deve ter pelo menos 3 caracteres")
 
-    # Buscar a categoria existente
     existing_categoria = await Categoria.find_one(Categoria.categoria_id == categoria_id)
 
     if not existing_categoria:
         raise HTTPException(status_code=404, detail="Categoria não encontrada")
 
-    # Atualizar os campos
     existing_categoria.nome = categoria.nome
     await existing_categoria.save()
 
@@ -85,7 +93,6 @@ async def excluir_categoria(categoria_id: int):
     if not categoria:
         raise HTTPException(status_code=404, detail="Categoria não encontrada")
 
-    # Verificar se há memórias associadas à categoria
     memorias_associadas = await Memoria.find_one(Memoria.categoria == categoria)
     if memorias_associadas:
         raise HTTPException(status_code=400, detail="Não é possível excluir. Esta categoria possui memórias associadas.")
@@ -109,3 +116,27 @@ async def listar_memorias_por_categoria(categoria_id: int):
         raise HTTPException(status_code=404, detail="Nenhuma memória encontrada para esta categoria")
 
     return memorias
+
+@router.get("/estatisticas/quantidade_memorias", response_model=dict)
+async def contar_memorias_por_categoria():
+    """
+    Retorna a contagem de memórias por categoria.
+    """
+    pipeline = [
+        {"$group": {"_id": "$categoria", "quantidade": {"$sum": 1}}},
+        {"$lookup": {
+            "from": "categoria",
+            "localField": "_id",
+            "foreignField": "_id",
+            "as": "categoria_info"
+        }},
+        {"$unwind": "$categoria_info"},
+        {"$project": {
+            "categoria": "$categoria_info.nome",
+            "quantidade": 1
+        }}
+    ]
+
+    resultado = await Memoria.get_motor_collection().aggregate(pipeline).to_list(None)
+
+    return {"estatisticas": resultado}

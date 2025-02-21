@@ -1,4 +1,4 @@
-from beanie import Document
+from beanie import Document, Indexed
 from datetime import date
 from typing import Optional
 from .categoria import Categoria
@@ -8,7 +8,7 @@ class Memoria(Document):
     """
     Representa uma memória no sistema.
     """
-    titulo: str
+    titulo: Indexed(str, index_type="text")  # Índice de texto
     descricao: str
     data: date  # Data da memória
     emocao: str  # Exemplo: "Feliz", "Triste"
