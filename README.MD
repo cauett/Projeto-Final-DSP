@@ -4,41 +4,41 @@ O diagrama abaixo representa a estrutura das entidades e seus relacionamentos na
 
 ```mermaid
 classDiagram
-    class Pessoa {
-        +String id
-        +String nome
-        +Date data_nascimento
-        +List~String~ memorias
+    class Categoria {
+        +int categoria_id
+        +string nome
     }
 
-    class Categoria {
-        +Int categoria_id
-        +String nome
+    class Pessoa {
+        +string id
+        +string nome
+        +date data_nascimento
+        +List~string~ memorias
     }
 
     class Memoria {
-        +String id
-        +String titulo
-        +String descricao
-        +Date data
-        +String emocao
-        +List~Categoria~ categorias
-        +List~Pessoa~ pessoas
+        +string id
+        +string titulo
+        +string descricao
+        +date data
+        +string emocao
+        +Categoria categoria
+        +Pessoa pessoa
     }
 
     class Grupo {
-        +String id
-        +String nome
+        +string id
+        +string nome
         +List~PessoaRef~ pessoas
     }
 
     class PessoaRef {
-        +String id
-        +String nome
-        +List~String~ memorias
+        +string id
+        +string nome
+        +List~string~ memorias
     }
 
-    Pessoa "1" -- "0..*" Memoria : possui
-    Categoria "1" -- "0..*" Memoria : classifica
-    Grupo "1" -- "0..*" PessoaRef : contém
-    PessoaRef "1" -- "1" Pessoa : referencia
+    %% RELACIONAMENTOS
+    Categoria <-- Memoria : "1" contém "0..*" 
+    Pessoa <-- Memoria : "1" contém "0..*"
+    Grupo "1" --> "*" PessoaRef : contém
