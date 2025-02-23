@@ -1,8 +1,3 @@
-## 📌 Diagrama de Classes
-
-O diagrama abaixo representa a estrutura das entidades e seus relacionamentos na API.
-
-```mermaid
 classDiagram
     class Pessoa {
         +String id
@@ -26,5 +21,19 @@ classDiagram
         +List~Pessoa~ pessoas
     }
 
+    class Grupo {
+        +String id
+        +String nome
+        +List~PessoaRef~ pessoas
+    }
+
+    class PessoaRef {
+        +String id
+        +String nome
+        +List~String~ memorias
+    }
+
     Pessoa "1" -- "0..*" Memoria : possui
     Categoria "1" -- "0..*" Memoria : classifica
+    Grupo "1" -- "0..*" PessoaRef : contém
+    PessoaRef "1" -- "1" Pessoa : referencia
