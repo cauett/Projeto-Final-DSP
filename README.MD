@@ -4,7 +4,6 @@ O diagrama abaixo representa a estrutura das entidades e seus relacionamentos na
 
 ```mermaid
 classDiagram
-    classDiagram
     class Pessoa {
         +String id
         +String nome
@@ -23,10 +22,9 @@ classDiagram
         +String descricao
         +Date data
         +String emocao
-        +Categoria categoria
-        +Pessoa pessoa
+        +List~Categoria~ categorias
+        +List~Pessoa~ pessoas
     }
 
-    Pessoa "1" --> "0..*" Memoria : possui
-    Categoria "1" --> "0..*" Memoria : classifica
-
+    Pessoa "1" -- "0..*" Memoria : possui
+    Categoria "1" -- "0..*" Memoria : classifica
