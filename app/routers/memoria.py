@@ -12,7 +12,14 @@ router = APIRouter()
 @router.post("/", response_model=Memoria)
 async def criar_memoria(memoria: Memoria):
     """
-    Cria uma nova memória, verificando se a `pessoa_id` e `categoria_id` existem.
+    Cria uma nova memória no sistema.
+    
+    Verifica:
+    - Existência da pessoa associada (se informada)
+    - Existência da categoria associada (se informada)
+    
+    Raises:
+        HTTPException 400: Se pessoa ou categoria não existirem
     """
     if memoria.pessoa and not await Pessoa.get(memoria.pessoa.id):
         raise HTTPException(status_code=400, detail="Pessoa não encontrada")
@@ -29,10 +36,13 @@ async def listar_memorias(
     skip: int = Query(0, description="Número de registros a pular"),
 ):
     """
-    Lista todas as memórias com paginação, incluindo os nomes das memórias associadas à pessoa.
+    Lista memórias com paginação.
+    
+    Features:
+    - Paginação via limit/skip
+    - Carrega títulos das memórias relacionadas à pessoa
     """
     query = Memoria.find()
-
     memorias = await query.skip(skip).limit(limit).to_list()
 
     for memoria in memorias:
@@ -45,7 +55,13 @@ async def listar_memorias(
 @router.get("/{id}", response_model=Memoria)
 async def obter_memoria(id: str):
     """
-    Obtém uma memória específica pelo `_id`.
+    Obtém detalhes de uma memória específica pelo ID.
+    
+    Params:
+        id (str): ObjectId da memória (24 caracteres hexadecimais)
+    
+    Raises:
+        HTTPException 404: Se memória não for encontrada
     """
     memoria = await Memoria.get(PydanticObjectId(id))
     if not memoria:
@@ -60,7 +76,11 @@ async def obter_memoria(id: str):
 @router.put("/{id}", response_model=Memoria)
 async def atualizar_memoria(id: str, memoria: Memoria):
     """
-    Atualiza os dados de uma memória existente.
+    Atualiza todos os campos de uma memória existente.
+    
+    Comportamento:
+    - Substitui todos os campos pelos novos valores
+    - Mantém o mesmo ID original
     """
     existing_memoria = await Memoria.get(PydanticObjectId(id))
     if not existing_memoria:
@@ -79,7 +99,10 @@ async def atualizar_memoria(id: str, memoria: Memoria):
 @router.delete("/{id}")
 async def excluir_memoria(id: str):
     """
-    Exclui uma memória pelo `_id`.
+    Remove permanentemente uma memória do sistema.
+    
+    Raises:
+        HTTPException 404: Se memória não existir
     """
     memoria = await Memoria.get(PydanticObjectId(id))
     if not memoria:
@@ -91,8 +114,14 @@ async def excluir_memoria(id: str):
 @router.get("/categoria/{identificador}", response_model=List[Memoria])
 async def listar_memorias_por_categoria(identificador: Union[int, str]):
     """
-    Lista todas as memórias associadas a uma determinada categoria,
-    permitindo busca por `categoria_id` (int) ou `nome` (str) de forma case insensitive.
+    Busca memórias por categoria usando ID ou nome.
+    
+    Params:
+        identificador (int|str): categoria_id (número) ou nome (string)
+    
+    Features:
+    - Busca case insensitive para nomes
+    - Valida existência da categoria
     """
     if isinstance(identificador, int) or identificador.isdigit():
         categoria = await Categoria.find_one(Categoria.categoria_id == int(identificador))
@@ -103,7 +132,6 @@ async def listar_memorias_por_categoria(identificador: Union[int, str]):
         raise HTTPException(status_code=404, detail="Categoria não encontrada")
 
     memorias = await Memoria.find(Memoria.categoria == categoria).to_list()
-
     if not memorias:
         raise HTTPException(status_code=404, detail="Nenhuma memória encontrada para esta categoria")
 
@@ -112,8 +140,10 @@ async def listar_memorias_por_categoria(identificador: Union[int, str]):
 @router.get("/pessoa/{identificador}", response_model=List[Memoria])
 async def listar_memorias_por_pessoa(identificador: Union[str, PydanticObjectId]):
     """
-    Lista todas as memórias associadas a uma determinada pessoa,
-    permitindo busca por `pessoa_id` (ObjectId) ou `nome` (str) de forma case insensitive.
+    Busca memórias associadas a uma pessoa usando ID ou nome.
+    
+    Params:
+        identificador (str|ObjectId): ID da pessoa ou nome exato
     """
     if isinstance(identificador, PydanticObjectId) or len(identificador) == 24:
         pessoa = await Pessoa.get(PydanticObjectId(identificador))
@@ -124,7 +154,6 @@ async def listar_memorias_por_pessoa(identificador: Union[str, PydanticObjectId]
         raise HTTPException(status_code=404, detail="Pessoa não encontrada")
 
     memorias = await Memoria.find(Memoria.pessoa == pessoa).to_list()
-
     if not memorias:
         raise HTTPException(status_code=404, detail="Nenhuma memória encontrada para esta pessoa")
 
@@ -132,13 +161,16 @@ async def listar_memorias_por_pessoa(identificador: Union[str, PydanticObjectId]
 
 @router.get("/memorias/buscar", response_model=List[Memoria])
 async def buscar_memorias(termo: str):
-    # Verifique se o termo não está vazio
+    """
+    Busca textual em memórias usando índice full-text.
+    
+    Params:
+        termo (str): Palavra ou frase para busca
+    """
     if not termo:
         raise HTTPException(status_code=400, detail="O termo de busca não pode ser vazio.")
     
-    # Realize a busca utilizando o índice de texto
     memorias = await Memoria.find({"$text": {"$search": termo}}).to_list()
-    
     if not memorias:
         raise HTTPException(status_code=404, detail="Nenhuma memória encontrada com o termo fornecido.")
     
@@ -147,7 +179,11 @@ async def buscar_memorias(termo: str):
 @router.get("/estatisticas/quantidade")
 async def contar_memorias():
     """
-    Retorna o número total de memórias cadastradas e a contagem por categoria.
+    Retorna estatísticas agregadas das memórias.
+    
+    Retorna:
+        total_memorias (int): Contagem total
+        quantidade_por_categoria (list): Agrupamento por categoria
     """
     total_memorias = await Memoria.find().count()
     contagem_por_categoria = await Memoria.aggregate([

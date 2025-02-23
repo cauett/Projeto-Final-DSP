@@ -11,10 +11,21 @@ router = APIRouter()
 @router.post("/", response_model=Pessoa)
 async def criar_pessoa(pessoa: Pessoa):
     """
-    Cria uma nova pessoa com um `nome` como identificador único.
+    Cria nova pessoa com nome único.
+    
+    Validações:
+    - Nome deve ser único no sistema
+    - Data de nascimento obrigatória e válida
     """
     if await Pessoa.find_one(Pessoa.nome == pessoa.nome):
         raise HTTPException(status_code=400, detail="Já existe uma pessoa com este nome")
+
+    # Valida formato da data de nascimento
+    if isinstance(pessoa.data_nascimento, str):
+        try:
+            pessoa.data_nascimento = datetime.strptime(pessoa.data_nascimento, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Formato inválido para data de nascimento. Use YYYY-MM-DD.")
 
     await pessoa.insert()
     return pessoa
@@ -25,7 +36,10 @@ async def listar_pessoas(
     skip: int = Query(0, description="Número de registros a pular"),
 ):
     """
-    Lista todas as pessoas com paginação, incluindo os títulos das memórias associadas.
+    Lista pessoas com paginação básica.
+    
+    Adicional:
+    - Inclui títulos das memórias relacionadas
     """
     pessoas = await Pessoa.find().skip(skip).limit(limit).to_list()
 
@@ -35,22 +49,24 @@ async def listar_pessoas(
 
     return pessoas
 
-
 @router.get("/{identificador}", response_model=Pessoa)
 async def obter_pessoa(identificador: str):
     """
-    Obtém os dados de uma pessoa pelo `_id` ou pelo `nome`, incluindo os títulos das memórias associadas.
+    Obtém pessoa por ID ou nome exato.
+    
+    Features:
+    - Busca flexível por diferentes identificadores
+    - Carrega memórias associadas automaticamente
     """
     pessoa = None
     try:
-        pessoa = await Pessoa.get(PydanticObjectId(identificador))  # Busca por ID
+        pessoa = await Pessoa.get(PydanticObjectId(identificador))
     except:
-        pessoa = await Pessoa.find_one(Pessoa.nome == identificador)  # Busca por nome
+        pessoa = await Pessoa.find_one(Pessoa.nome == identificador)
 
     if not pessoa:
         raise HTTPException(status_code=404, detail="Pessoa não encontrada")
 
-    # Adicionar títulos das memórias associadas
     memorias_pessoa = await Memoria.find(Memoria.pessoa == pessoa).to_list()
     pessoa.memorias = [m.titulo for m in memorias_pessoa]
 
@@ -59,7 +75,11 @@ async def obter_pessoa(identificador: str):
 @router.put("/{identificador}", response_model=Pessoa)
 async def atualizar_pessoa(identificador: str, pessoa: Pessoa):
     """
-    Atualiza os dados de uma pessoa existente pelo `_id` ou `nome`.
+    Atualiza dados básicos de uma pessoa.
+    
+    Permite:
+    - Alteração de nome (mantendo unicidade)
+    - Atualização de data de nascimento
     """
     existing_pessoa = None
 
@@ -74,13 +94,16 @@ async def atualizar_pessoa(identificador: str, pessoa: Pessoa):
     existing_pessoa.nome = pessoa.nome
     existing_pessoa.data_nascimento = pessoa.data_nascimento
     await existing_pessoa.save()
-
     return existing_pessoa
 
 @router.delete("/{identificador}")
 async def excluir_pessoa(identificador: str):
     """
-    Exclui uma pessoa pelo `_id` ou pelo `nome`.
+    Exclui uma pessoa e suas memórias associadas.
+    
+    Validações:
+    - Exclui todas as memórias vinculadas automaticamente
+    - Permite exclusão por ID ou nome
     """
     pessoa = None
 
@@ -92,14 +115,12 @@ async def excluir_pessoa(identificador: str):
     if not pessoa:
         raise HTTPException(status_code=404, detail="Pessoa não encontrada")
 
-    memorias_associadas = await Memoria.find_one({"pessoa": pessoa.id})
-    if memorias_associadas:
-        raise HTTPException(status_code=400, detail="Não é possível excluir. Essa pessoa possui memórias associadas.")
+    # Exclui todas as memórias associadas
+    await Memoria.find(Memoria.pessoa == pessoa).delete()
 
     await pessoa.delete()
-    return {"message": "Pessoa excluída com sucesso"}
+    return {"message": "Pessoa e suas memórias associadas foram excluídas com sucesso"}
 
-# 🔹 FILTRO POR DATA DE NASCIMENTO OTIMIZADO
 @router.get("/filtrar/data_nascimento", response_model=List[Pessoa])
 async def filtrar_pessoas_por_data_nascimento(
     ano: Optional[int] = Query(None, description="Ano de nascimento da pessoa"),
@@ -107,7 +128,14 @@ async def filtrar_pessoas_por_data_nascimento(
     data_fim: Optional[str] = Query(None, description="Data final (YYYY-MM-DD)")
 ):
     """
-    Filtra pessoas pelo ano de nascimento ou por um intervalo de datas.
+    Filtra pessoas por intervalo de datas de nascimento.
+    
+    Params:
+        ano: Filtro por ano específico
+        data_inicio/data_fim: Range temporal
+    
+    Valida:
+    - Formato correto das datas (YYYY-MM-DD)
     """
     filtro = {}
 
@@ -123,24 +151,25 @@ async def filtrar_pessoas_por_data_nascimento(
             raise HTTPException(status_code=400, detail="Formato de data inválido. Use YYYY-MM-DD.")
 
     pessoas = await Pessoa.find(filtro).to_list()
-
     if not pessoas:
         raise HTTPException(status_code=404, detail="Nenhuma pessoa encontrada com esse critério")
 
     return pessoas
 
-# 🔹 ORDENAÇÃO POR DATA DE NASCIMENTO OTIMIZADA
 @router.get("/ordenar/data_nascimento", response_model=List[Pessoa])
 async def ordenar_pessoas_por_data_nascimento(
     ordem: str = Query("desc", description="Ordenação por data de nascimento: 'asc' para mais velhos, 'desc' para mais novos")
 ):
     """
-    Ordena as pessoas pela data de nascimento (mais novas primeiro ou mais velhas primeiro).
+    Ordena pessoas por data de nascimento.
+    
+    Opções:
+    - asc: Mais antigas primeiro
+    - desc: Mais novas primeiro (padrão)
     """
     ordem_mongo = DESCENDING if ordem == "desc" else ASCENDING
 
     pessoas = await Pessoa.find().sort([("data_nascimento", ordem_mongo)]).to_list()
-
     if not pessoas:
         raise HTTPException(status_code=404, detail="Nenhuma pessoa encontrada")
 

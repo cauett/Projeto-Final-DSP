@@ -1,3 +1,4 @@
+# database.py
 from motor.motor_asyncio import AsyncIOMotorClient
 from beanie import init_beanie
 from app.config import MONGO_URL
@@ -13,5 +14,13 @@ client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
 
 async def init_db():
-    """Inicializa o Beanie com os modelos do banco de dados."""
+    """Inicializa a conexão com o MongoDB e configura os modelos do Beanie.
+    
+    Configura:
+        - Conexão assíncrona com o banco de dados
+        - Registro dos modelos de documento (Categoria, Pessoa, Memoria)
+    
+    Raises:
+        ServerSelectionTimeoutError: Se falhar a conexão com o MongoDB
+    """
     await init_beanie(database=db, document_models=[Categoria, Pessoa, Memoria])
