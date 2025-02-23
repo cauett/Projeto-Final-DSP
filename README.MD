@@ -1,3 +1,8 @@
+## 📌 Diagrama de Classes
+
+O diagrama abaixo representa a estrutura das entidades e seus relacionamentos na API.
+
+```mermaid
 classDiagram
     class Pessoa {
         +String id
