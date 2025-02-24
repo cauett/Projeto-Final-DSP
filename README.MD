@@ -6,34 +6,36 @@ O diagrama abaixo representa a estrutura das entidades e seus relacionamentos na
 classDiagram
     class Categoria {
         +int categoria_id
-        +String nome
+        +str nome
     }
 
     class Memoria {
-        +String titulo
-        +String descricao
+        +str titulo
+        +str descricao
         +date data
-        +String emocao
+        +str emocao
+        +Optional[Categoria] categoria
+        +Optional[Pessoa] pessoa
     }
 
     class Pessoa {
-        +String nome
+        +str nome
         +date data_nascimento
-        +List~String~ memorias
+        +Optional[List[str]] memorias
     }
 
     class Grupo {
-        +String nome
-        +List~PessoaRef~ pessoas
+        +str nome
+        +List[PessoaRef] pessoas
     }
 
     class PessoaRef {
-        +String id
-        +String nome
-        +List~String~ memorias
+        +str id
+        +str nome
+        +List[str] memorias
     }
 
-    Memoria --> Categoria : pertence a
-    Memoria --> Pessoa : associada a
-    Grupo "1" --> "*" PessoaRef : contém
-    PessoaRef --> "*" Memoria : referência a
+    Categoria "1" --o "0..*" Memoria : classifica
+    Pessoa "1" --o "0..*" Memoria : possui
+    Grupo "1" *-- "0..*" PessoaRef : contém
+    PessoaRef ..> Pessoa : referencia
