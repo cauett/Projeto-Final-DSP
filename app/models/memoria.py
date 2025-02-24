@@ -5,10 +5,11 @@ from typing import Optional
 from .categoria import Categoria
 from .pessoa import Pessoa
 
+
 class Memoria(Document):
     """
     Representa uma memória associada a experiências pessoais.
-    
+
     Attributes:
         titulo (Indexed(str)): Título da memória com índice de texto para buscas
         descricao (str): Descrição detalhada do acontecimento
@@ -17,6 +18,7 @@ class Memoria(Document):
         categoria (Optional[Categoria]): Categoria de classificação da memória
         pessoa (Optional[Pessoa]): Pessoa associada à memória
     """
+
     titulo: Indexed(str, index_type="text")
     descricao: str
     data: date
@@ -26,4 +28,5 @@ class Memoria(Document):
 
     class Settings:
         """Configurações do banco de dados para a coleção de memórias"""
+
         collection = "memorias"

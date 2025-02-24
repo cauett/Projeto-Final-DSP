@@ -14,8 +14,9 @@ DB_NAME = os.getenv("MONGO_DB_NAME", "banco-memorias")
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
 
+
 async def init_db():
     await init_beanie(
-        database=db, 
-        document_models=[Categoria, Pessoa, Memoria, Grupo]  # Inclua Grupo
+        database=db,
+        document_models=[Categoria, Pessoa, Memoria, Grupo],  # Inclua Grupo
     )
